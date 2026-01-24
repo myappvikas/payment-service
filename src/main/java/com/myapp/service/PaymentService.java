@@ -1,17 +1,14 @@
 package com.myapp.service;
 
 import com.myapp.dto.AccountDTO;
-import com.myapp.entity.Account;
-
-import java.util.Optional;
 
 public interface PaymentService {
 
-   Account createAccount(AccountDTO dto);
+    AccountDTO createAccount(AccountDTO dto);
 
-   Double checkBalance(Integer customerId);
+    Double checkBalance(Long customerId);
 
-   Account makeTransaction(Integer customerId, Double amount);
+    AccountDTO makeTransaction(Long customerId, Double amount);
 
-   Optional<Account> searchAccount(Integer id);
+    AccountDTO searchAccount(Long id);
 }

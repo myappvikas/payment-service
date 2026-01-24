@@ -2,6 +2,8 @@ package com.myapp.dto;
 
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 @Getter
 @Setter
 @ToString
@@ -9,11 +11,11 @@ import lombok.*;
 @NoArgsConstructor
 public class AccountDTO {
 
-    private Integer id;
+    private Long id;
     private String cardHolderName;
     private Long cardNumber;
     private Double availableBalance;
-    private String expiryDate;
+    private LocalDateTime expiryDate;
     private Integer securityCode;
     private transient OrderDTO orderInfo;
 }

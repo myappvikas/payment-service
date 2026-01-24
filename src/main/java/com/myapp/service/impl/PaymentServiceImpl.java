@@ -11,11 +11,9 @@ import jakarta.transaction.Transactional;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 
-import java.util.Optional;
-
 @Service
+@Transactional
 public class PaymentServiceImpl implements PaymentService {
-
 
     private final PaymentRepository paymentRepository;
 
@@ -32,42 +30,42 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
-    public Account createAccount(AccountDTO dto) {
-        return paymentRepository.save(
+    public AccountDTO createAccount(AccountDTO dto) {
+        Account savedAccount = paymentRepository.save(
                 modelMapper.map(dto, Account.class)
         );
+        return modelMapper.map(savedAccount, AccountDTO.class);
     }
 
     @Override
-    public Double checkBalance(Integer customerId) {
+    public Double checkBalance(Long customerId) {
         return paymentRepository.findById(customerId)
                 .map(Account::getAvailableBalance)
-                .orElse(0.0d);
+                .orElse(0.0);
     }
 
     @Override
     @Transactional
-    public Account makeTransaction(Integer customerId, Double amount) {
-
+    public AccountDTO makeTransaction(Long customerId, Double amount) {
         Account account = paymentRepository.findById(customerId)
                 .orElseThrow(() ->
-                        new ResourceNotFoundException("Account does not exist for customerId: " + customerId)
+                        new ResourceNotFoundException(
+                                "Account does not exist for customerId: " + customerId)
                 );
-
         account.setAvailableBalance(account.getAvailableBalance() - amount);
-
-        OrderDTO order = new OrderDTO();
-        order.setOrderAmount(amount);
-        order.setOrderItem("SmartPhone");
-
+        OrderDTO order = account.getOrderInfo();
+        System.out.println(order);
         account.setOrderInfo(paymentClient.placeOrder(order));
-
-        return paymentRepository.save(account);
+        Account savedAccount = paymentRepository.save(account);
+        return modelMapper.map(savedAccount, AccountDTO.class);
     }
 
-
     @Override
-    public Optional<Account> searchAccount(Integer id) {
-        return paymentRepository.findById(id);
+    public AccountDTO searchAccount(Long id) {
+        Account account = paymentRepository.findById(id)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Account not found with id: " + id)
+                );
+        return modelMapper.map(account, AccountDTO.class);
     }
 }
