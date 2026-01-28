@@ -34,9 +34,12 @@ public class PaymentController {
 	}
 
 	@CircuitBreaker(name = "service-message", fallbackMethod = "fallbackResponse")
-	@PutMapping("/pay/amount/{id}/{amount}")
-	public ResponseEntity<?> makePayment(@PathVariable Long id, @PathVariable Double amount, @RequestBody OrderDTO orderDTO){
-		return new ResponseEntity<>(paymentService.makeTransaction(id,amount, orderDTO), HttpStatus.OK);
+	@PostMapping("/pay/amount/{id}/{amount}")
+	public ResponseEntity<?> makePayment(@PathVariable Long id,
+                                         @PathVariable Double amount,
+                                         @RequestBody OrderDTO orderDTO){
+		return new ResponseEntity<>(paymentService.makeTransaction(id,amount, orderDTO),
+                HttpStatus.OK);
 	}
 
 	public ResponseEntity<?> fallbackResponse(@PathVariable Long id, @PathVariable Double amount,

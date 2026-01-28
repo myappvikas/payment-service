@@ -21,9 +21,9 @@ public class PaymentServiceImpl implements PaymentService {
 
     private final WebClient webClient;
 
-    public PaymentServiceImpl (PaymentRepository paymentRepository,
-                               ModelMapper modelMapper,
-                               WebClient webClient) {
+    public PaymentServiceImpl(PaymentRepository paymentRepository,
+                              ModelMapper modelMapper,
+                              WebClient webClient) {
         this.paymentRepository = paymentRepository;
         this.modelMapper = modelMapper;
         this.webClient = webClient;
@@ -48,33 +48,35 @@ public class PaymentServiceImpl implements PaymentService {
     @Transactional
     public AccountDTO makeTransaction(Long customerId, Double amount, OrderDTO orderDTO) {
 
+        OrderDTO dto = new OrderDTO();
+        Account savedAccount = null;
+
         Account account = paymentRepository.findById(customerId)
                 .orElseThrow(() ->
                         new ResourceNotFoundException(
                                 "Account does not exist for customerId: " + customerId)
                 );
 
-        account.setAvailableBalance(account.getAvailableBalance() - amount);
-
-        //OrderDTO dto = account.getOrderInfo();
-
-        if (orderDTO != null){
-            account.setOrderInfo(orderDTO);
+        if (amount < account.getAvailableBalance()) {
+            account.setAvailableBalance(account.getAvailableBalance() - amount);
+            savedAccount = paymentRepository.save(account);
         }
 
-        //OrderDTO orderDTO = new OrderDTO();
-        //orderDTO.setOrderItem("Phone");
-        //orderDTO.setOrderAmount(500D);
+        if (orderDTO != null) {
+            dto.setOrderItem(orderDTO.getOrderItem());
+            dto.setOrderAmount(amount);
+        }
 
         OrderDTO updatedOrder = webClient
                 .post()
                 .uri("/api/orders/place")
-                .bodyValue(orderDTO)
+                .bodyValue(dto)
                 .retrieve()
                 .bodyToMono(OrderDTO.class)
                 .block();
-        account.setOrderInfo(updatedOrder);
-        Account savedAccount = paymentRepository.save(account);
+
+        savedAccount.setOrderInfo(updatedOrder);
+
         return modelMapper.map(savedAccount, AccountDTO.class);
     }
 
