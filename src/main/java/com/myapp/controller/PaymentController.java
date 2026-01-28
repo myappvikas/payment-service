@@ -1,6 +1,7 @@
 package com.myapp.controller;
 
 import com.myapp.dto.AccountDTO;
+import com.myapp.dto.OrderDTO;
 import com.myapp.service.PaymentService;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import org.springframework.http.HttpStatus;
@@ -34,8 +35,8 @@ public class PaymentController {
 
 	@CircuitBreaker(name = "service-message", fallbackMethod = "fallbackResponse")
 	@PutMapping("/pay/amount/{id}/{amount}")
-	public ResponseEntity<?> makePayment(@PathVariable Long id, @PathVariable Double amount){
-		return new ResponseEntity<>(paymentService.makeTransaction(id,amount),HttpStatus.OK);
+	public ResponseEntity<?> makePayment(@PathVariable Long id, @PathVariable Double amount, @RequestBody OrderDTO orderDTO){
+		return new ResponseEntity<>(paymentService.makeTransaction(id,amount, orderDTO), HttpStatus.OK);
 	}
 
 	public ResponseEntity<?> fallbackResponse(@PathVariable Long id, @PathVariable Double amount,

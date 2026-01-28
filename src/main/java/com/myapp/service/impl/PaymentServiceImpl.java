@@ -1,6 +1,5 @@
 package com.myapp.service.impl;
 
-import com.myapp.client.PaymentClient;
 import com.myapp.dto.AccountDTO;
 import com.myapp.dto.OrderDTO;
 import com.myapp.entity.Account;
@@ -10,23 +9,24 @@ import com.myapp.service.PaymentService;
 import jakarta.transaction.Transactional;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClient;
 
-@Service
 @Transactional
+@Service
 public class PaymentServiceImpl implements PaymentService {
 
     private final PaymentRepository paymentRepository;
 
-    private final PaymentClient paymentClient;
-
     private final ModelMapper modelMapper;
 
+    private final WebClient webClient;
+
     public PaymentServiceImpl (PaymentRepository paymentRepository,
-                               PaymentClient paymentClient,
-                               ModelMapper modelMapper) {
+                               ModelMapper modelMapper,
+                               WebClient webClient) {
         this.paymentRepository = paymentRepository;
-        this.paymentClient = paymentClient;
         this.modelMapper = modelMapper;
+        this.webClient = webClient;
     }
 
     @Override
@@ -46,16 +46,34 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     @Transactional
-    public AccountDTO makeTransaction(Long customerId, Double amount) {
+    public AccountDTO makeTransaction(Long customerId, Double amount, OrderDTO orderDTO) {
+
         Account account = paymentRepository.findById(customerId)
                 .orElseThrow(() ->
                         new ResourceNotFoundException(
                                 "Account does not exist for customerId: " + customerId)
                 );
+
         account.setAvailableBalance(account.getAvailableBalance() - amount);
-        OrderDTO order = account.getOrderInfo();
-        System.out.println(order);
-        account.setOrderInfo(paymentClient.placeOrder(order));
+
+        //OrderDTO dto = account.getOrderInfo();
+
+        if (orderDTO != null){
+            account.setOrderInfo(orderDTO);
+        }
+
+        //OrderDTO orderDTO = new OrderDTO();
+        //orderDTO.setOrderItem("Phone");
+        //orderDTO.setOrderAmount(500D);
+
+        OrderDTO updatedOrder = webClient
+                .post()
+                .uri("/api/orders/place")
+                .bodyValue(orderDTO)
+                .retrieve()
+                .bodyToMono(OrderDTO.class)
+                .block();
+        account.setOrderInfo(updatedOrder);
         Account savedAccount = paymentRepository.save(account);
         return modelMapper.map(savedAccount, AccountDTO.class);
     }
