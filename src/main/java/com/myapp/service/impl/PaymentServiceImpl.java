@@ -3,6 +3,8 @@ package com.myapp.service.impl;
 import com.myapp.dto.AccountDTO;
 import com.myapp.dto.OrderDTO;
 import com.myapp.entity.Account;
+import com.myapp.exception.InsufficientBalanceException;
+import com.myapp.exception.OrderServiceException;
 import com.myapp.exception.ResourceNotFoundException;
 import com.myapp.repository.PaymentRepository;
 import com.myapp.service.PaymentService;
@@ -10,6 +12,8 @@ import jakarta.transaction.Transactional;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+
+import java.util.Optional;
 
 @Transactional
 @Service
@@ -48,36 +52,70 @@ public class PaymentServiceImpl implements PaymentService {
     @Transactional
     public AccountDTO makeTransaction(Long customerId, Double amount, OrderDTO orderDTO) {
 
-        OrderDTO dto = new OrderDTO();
-        Account savedAccount = null;
+        validateInputs(customerId, amount);
 
-        Account account = paymentRepository.findById(customerId)
+        Account updatedAccount = paymentRepository.findById(customerId)
+                .map(account -> debitAmount(account, amount))
+                .map(paymentRepository::save)
+                .map(account -> enrichWithOrder(account, amount, orderDTO))
                 .orElseThrow(() ->
                         new ResourceNotFoundException(
-                                "Account does not exist for customerId: " + customerId)
-                );
+                                "Account does not exist for customerId: " + customerId));
 
-        if (amount < account.getAvailableBalance()) {
-            account.setAvailableBalance(account.getAvailableBalance() - amount);
-            savedAccount = paymentRepository.save(account);
+        return modelMapper.map(updatedAccount, AccountDTO.class);
+    }
+
+    private void validateInputs(Long customerId, Double amount) {
+        if (customerId == null) {
+            throw new IllegalArgumentException("CustomerId must not be null");
         }
-
-        if (orderDTO != null) {
-            dto.setOrderItem(orderDTO.getOrderItem());
-            dto.setOrderAmount(amount);
+        if (amount == null || amount <= 0) {
+            throw new IllegalArgumentException("Transaction amount must be greater than zero");
         }
+    }
 
-        OrderDTO updatedOrder = webClient
-                .post()
+    private Account debitAmount(Account account, Double amount) {
+
+        if (account.getAvailableBalance() < amount) {
+            throw new InsufficientBalanceException(
+                    "Insufficient balance for accountId: " + account.getId());
+        }
+        account.setAvailableBalance(account.getAvailableBalance() - amount);
+        return account;
+    }
+
+    private Account enrichWithOrder(Account account, Double amount, OrderDTO orderDTO) {
+
+        return Optional.ofNullable(orderDTO)
+                .map(dto -> buildOrderRequest(dto, amount))
+                .map(this::placeOrder)
+                .map(order -> {
+                    account.setOrderInfo(order);
+                    return account;
+                })
+                .orElse(account);
+    }
+
+    private OrderDTO buildOrderRequest(OrderDTO orderDTO, Double amount) {
+        OrderDTO dto = new OrderDTO();
+        dto.setOrderItem(orderDTO.getOrderItem());
+        dto.setOrderAmount(amount);
+        return dto;
+    }
+
+    private OrderDTO placeOrder(OrderDTO orderDTO) {
+        return webClient.post()
                 .uri("/api/orders/place")
-                .bodyValue(dto)
+                .bodyValue(orderDTO)
                 .retrieve()
+                .onStatus(
+                        status -> status.is4xxClientError() || status.is5xxServerError(),
+                        response -> response.bodyToMono(String.class)
+                                .map(error -> new OrderServiceException(
+                                        "Order service failed: " + error))
+                )
                 .bodyToMono(OrderDTO.class)
                 .block();
-
-        savedAccount.setOrderInfo(updatedOrder);
-
-        return modelMapper.map(savedAccount, AccountDTO.class);
     }
 
     @Override
